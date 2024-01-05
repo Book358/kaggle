@@ -1,0 +1,47 @@
+# Palmer Penguins for binary classification
+# (Kaggle Competitions)
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+pd.set_option('display.max_rows', 7)
+df = pd.read_csv('/content/drive/MyDrive/Datasets/penguins_binary_classification.csv')
+df
+
+df.isnull().sum()
+
+df['species'] = df['species'].replace('Adelie', 0)
+df['species'] = df['species'].replace('Gentoo', 1)
+df['island'] = df['island'].replace('Torgersen', 0)
+df['island'] = df['island'].replace('Dream', 1)
+df['island'] = df['island'].replace('Biscoe', 2)
+df
+
+sns.pairplot(df, hue='species')
+plt.legend()
+
+df.corr().style.background_gradient(cmap='coolwarm', axis=None)
+
+X = df.iloc[:,1:]
+X
+
+y = df.iloc[:,0:1]
+y
+
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1)
+
+model = LogisticRegression()
+model.fit(x_train, y_train)
+model
+
+print(f'Train_acc：{accuracy_score(y_train, model.predict(x_train))}')
+print(f'Test_acc ：{accuracy_score(y_test, model.predict(x_test))}')
+
+sub = pd.DataFrame(model.predict(x_test))
+sub.columns = ["species"]
+sub
+
+sub.to_csv('submission.csv', index=False)
