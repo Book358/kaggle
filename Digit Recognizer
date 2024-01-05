@@ -1,0 +1,96 @@
+# Digit Recognizer
+# (Kaggle Competitions)
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+
+train_df = pd.read_csv('/content/drive/MyDrive/Datasets/DigitRecognizer_train.csv')
+test_df = pd.read_csv('/content/drive/MyDrive/Datasets/DigitRecognizer_test.csv')
+train_df
+test_df
+
+train_df['label'].value_counts()
+
+i = 0 
+tmp_img = train_df.iloc[i, 1:]
+tmp_img.head()
+
+tmp_img = tmp_img.values
+tmp_img
+
+tmp_img = tmp_img.reshape(28,28)
+tmp_img
+tmp_img.shape
+
+plt.imshow(tmp_img, cmap='gray') 
+plt.show()
+
+col_X = train_df.columns.values[1:].tolist() 
+col_X[:5]
+col_X[-5:]
+
+col_Y = 'label' 
+col_Y
+
+traintest_df = pd.concat([train_df, test_df])
+traintest_df
+
+traintest_df = traintest_df.reset_index(drop=True)
+traintest_df
+
+traintest_df['id'] = np.arange(len(traintest_df)) 
+traintest_df
+
+traintest_df = traintest_df[['id', col_Y] + col_X] 
+traintest_df
+
+traintest_df.loc[:,col_X] = traintest_df.loc[:,col_X].values/255
+
+train_df = traintest_df.iloc[:len(train_df)]
+train_df.loc[:,col_Y] = train_df[col_Y].values.astype(int)
+train_df
+
+test_df = traintest_df.iloc[len(train_df):].reset_index(drop=True)
+test_df
+
+folds = list(StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+             .split(X=train_df[col_X], y=train_df[col_Y]))
+
+folds[0][0]
+folds[0][0].shape
+folds[0][1]
+folds[0][1].shape
+folds[1][0]
+folds[1][0].shape
+folds[1][1]
+folds[1][1].shape
+
+Y_pred = np.zeros([len(train_df)])
+for (train_index, valid_index) in folds:
+    X_train = train_df[col_X].values[train_index]
+    X_valid = train_df[col_X].values[valid_index]
+    Y_train = train_df[col_Y].values[train_index]
+    Y_valid = train_df[col_Y].values[valid_index]
+    model = RandomForestClassifier(n_estimators=500)
+    model.fit(X_train, Y_train)
+    Y_pred[valid_index] = model.predict(X_valid)
+    Y_pred
+
+acc = (train_df[col_Y]==Y_pred).mean()
+acc
+
+test_X = test_df.iloc[:,2:]
+test_X
+
+test_pred = model.predict(test_X)
+test_pred
+
+sub = pd.read_csv('/content/drive/MyDrive/Datasets/DigitRecognizer_submission.csv')
+sub
+
+sub["Label"] = test_pred
+sub
+
+sub.to_csv("submission.csv", index=False)
