@@ -2,83 +2,86 @@
 # (Kaggle Competitions)
 import pandas as pd
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
+import lightgbm as lgb
 from sklearn.metrics import accuracy_score
 import os
 for dirname, _, filenames in os.walk('/kaggle/input'):
     for filename in filenames:
         print(os.path.join(dirname, filename))
+import warnings
+warnings.simplefilter('ignore')
 
+# 学習用データ
 train = pd.read_csv('/kaggle/input/titanic/train.csv')
-train
+train.head(3)
+train.dtypes
 
-# 性別による生存率
-pd.DataFrame(train.groupby(["Sex", "Survived"]).size()).reset_index().rename(columns={0:"count"})
-233/(81+233)  # 女性の生存率:74%
-109/(468+109) # 男性の生存率:19%
+# 性別による生存者数
+sns.countplot(x='Sex', hue='Survived', data=train) 
 
-# 船室等級による生存率
-pd.DataFrame(train.groupby(["Pclass", "Survived"]).size()).reset_index().rename(columns={0:"count"})
-136/(80+136)  # 1等船室の生存率:63%
-119/(372+119) # 3等船室の生存率:24%
+# 年齢による生存者数
+fig = sns.FacetGrid(train, col='Survived', hue='Survived', height=4)
+fig.map(sns.histplot, 'Age', bins=30, kde=False)
 
-# 性別と船室等級による生存率
-pd.DataFrame(train.groupby(["Sex", "Pclass", "Survived"]).size()).reset_index().rename(columns={0:"count"})]
+# 乗船料金による生存者数
+fig.map(sns.histplot, 'Fare', bins=30, kde=False)
+
+# 兄弟･配偶者の数による生存者数
+sns.countplot(x='SibSp', hue='Survived', data=train)
+plt.show()
+
+# 両親･子供の数による生存者数
+sns.countplot(x='Parch', hue='Survived', data=train)
+plt.legend(title='Survived' ,loc='upper right')
+plt.show()
+
+# 相関係数
+sns.heatmap(train[['Survived','Age','SibSp','Parch','Fare']].corr(), vmax=1, vmin=-1, annot=True)
+
+# 船室等級による生存者数
+sns.countplot(x='Pclass', hue='Survived', data=train)
+plt.show()
+
+# 乗船した港による生存者数
+sns.countplot(x='Embarked', hue='Survived', data=train)
+plt.show()
 
 # 欠損値補完
 train.isnull().sum()
-train["Age"].median()
-train["Age"] = train["Age"].fillna(28)
-train["Age"].isnull().sum()
-train["Age"].unique()
+train['Age']  =  train['Age'].fillna(train['Age'].median())
+train['Embarked'] =  train['Embarked'].fillna('NaN')
 
-# 年代による生存率
-train["Generation"] = (train["Age"]/10).astype(int)*10
-pd.DataFrame(train.groupby(["Generation", "Survived"]).size()).reset_index()
-129/(268+129) # 20代の生存率:32%
-20/(28+20)    # 50代の生存率:42%
-38/(24+38)    # 10代の生存率:61%
-
-# データセット
-df = train[["Survived", "Sex", "Generation", "Pclass"]]
-df
-
-# 前処理
-df["Sex"] = df["Sex"].map({"male":0, "female":1})
-df
-df["Generation"] = df["Generation"].astype(str)
-df["Pclass"] = df["Pclass"].astype(str)
-df.dtypes
-dummies = pd.get_dummies(df[["Generation", "Pclass"]], dtype=int)
-df = pd.concat([df, dummies], axis=1).drop(["Generation", "Pclass"], axis=1)
-df
+# One-Hot Encoding
+train = pd.get_dummies(train, columns= ["Sex", "Pclass", 'Embarked'], dtype=float)
+train.head(3)
 
 # モデル構築
-X = df.drop("Survived", axis=1)
-y = df[["Survived"]]
-X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.33, random_state=42)
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
-pred = model.predict(X_valid)
-accuracy_score(y_valid, pred)
+X = train.drop(['PassengerId', 'Age', 'Ticket', 'Fare', 'Cabin', 'Name', 'Survived'], axis=1)
+y = train['Survived']
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=0)
+params = {
+    'boosting_type':'gbdt',
+    'objective':'binary',
+    'metric':'auc',
+    'num_leaves':16,
+    'learning_rate':0.1,
+    'n_estimators':100000,
+    'random_state':0
+}
+model = lgb.LGBMClassifier(**params)
+model.fit(X_train, y_train, eval_set = [(X_train, y_train),(X_val, y_val)], early_stopping_rounds=50)
+accuracy_score(y_val, model.predict(X_val))
+model.best_iteration_
 
 # 予測
 test = pd.read_csv('/kaggle/input/titanic/test.csv')
-test
-test.isnull().sum()
-test["Age"].median()
-test["Age"] = test["Age"].fillna(27)
-test.isnull().sum()
-test["Sex"] = test["Sex"].map({"male":0, "female":1})
-test["Generation"] = (test["Age"]/10).astype(int)*10
-test = test[["Sex", "Generation", "Pclass"]]
-test["Generation"] = test["Generation"].astype(str)
-test["Pclass"] = test["Pclass"].astype(str)
-dummies = pd.get_dummies(test[["Generation", "Pclass"]], dtype=int)
-test = pd.concat([test, dummies], axis=1).drop(["Generation", "Pclass"], axis=1)
-test.insert(9, 'Generation_80', 0)
-test
+test = pd.get_dummies(test, columns= ["Sex", "Pclass", 'Embarked'], dtype=float)
+test = test.drop(['PassengerId', 'Age', 'Ticket', 'Fare', 'Cabin', 'Name'], axis=1)
+test.insert(8, column= 'Embarked_NaN', value= 0)
+test.head(3)
 pred = model.predict(test)
 pred
 
@@ -86,4 +89,4 @@ pred
 sub = pd.read_csv('/kaggle/input/titanic/gender_submission.csv')
 sub["Survived"] = pred
 sub.to_csv("submission.csv", index=False)
-sub
+sub.head(3)
