@@ -1,5 +1,6 @@
 # Titanic - Machine Learning from Disaster
 # (Kaggle Competitions)
+!pip install lime
 import pandas as pd
 import numpy as np
 import seaborn as sns
@@ -7,12 +8,9 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 from sklearn.metrics import accuracy_score
-import os
-for dirname, _, filenames in os.walk('/kaggle/input'):
-    for filename in filenames:
-        print(os.path.join(dirname, filename))
+from lime.lime_tabular import LimeTabularExplainer
+from google.colab import drive
 import warnings
-warnings.simplefilter('ignore')
 
 # 学習用データ
 train = pd.read_csv('/kaggle/input/titanic/train.csv')
@@ -84,6 +82,24 @@ test.insert(8, column= 'Embarked_NaN', value= 0)
 test.head(3)
 pred = model.predict(test)
 pred
+
+# 予測説明 (LIME)
+def predict_fn(test):
+   preds = model.predict(test).reshape(-1, 1)
+   p0 = 1 - preds
+   return np.hstack((p0, preds)
+explainer = LimeTabularExplainer(
+    test.values,
+    mode = 'classification',
+    feature_names = test.columns,
+    class_names = ["Death", "Survival"],
+    verbose = True)
+i = 15  # iでデータを指定
+exp = explainer.explain_instance(test.values[i], predict_fn, num_features=5)
+exp.show_in_notebook(show_all=False)
+
+# 指定したデータ (15番目)
+test[15:16]
 
 # 提出ファイルの作成
 sub = pd.read_csv('/kaggle/input/titanic/gender_submission.csv')
